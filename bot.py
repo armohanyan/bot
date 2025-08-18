@@ -4,6 +4,7 @@ import requests
 from bs4 import BeautifulSoup
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
+import re
 
 # ----------------------------
 # Configuration
@@ -25,9 +26,23 @@ def get_csrf_and_cookies():
         raise Exception("CSRF token not found")
     return token["content"], cookies
 
-def normalize_plate(plate: str) -> str:
-    """Remove extra spaces and convert to uppercase."""
-    return plate.replace(" ", "").upper()
+def format_plate(plate: str) -> str:
+    """
+    Convert any user input into the server's expected format.
+    Example: "01IT201" -> "01 IT 201"
+    """
+    plate = plate.upper().replace("-", " ").replace("_", " ")
+    # Remove multiple spaces
+    plate = re.sub(r"\s+", " ", plate.strip())
+    
+    # Insert spaces between numbers and letters if missing
+    # Assuming format: two digits + two letters + three digits (Armenian style)
+    match = re.match(r"(\d{2})([A-Z]{2})(\d{3})", plate.replace(" ", ""))
+    if match:
+        return f"{match.group(1)} {match.group(2)} {match.group(3)}"
+    
+    # If pattern doesn't match, return cleaned version
+    return plate
 
 def check_plate(plate: str) -> bool:
     """Check if plate is free. Returns True if free, False if taken."""
@@ -71,12 +86,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_plate(update: Update, context: ContextTypes.DEFAULT_TYPE):
     plate = update.message.text.strip()
-    normalized_plate = normalize_plate(plate)
-    
-    await update.message.reply_text(f"Checking plate: {plate} ...")
+    formatted_plate = format_plate(plate)
+
+    await update.message.reply_text(f"Checking plate: {formatted_plate} ...")
 
     loop = asyncio.get_event_loop()
-    is_free = await loop.run_in_executor(None, check_plate, normalized_plate)
+    is_free = await loop.run_in_executor(None, check_plate, formatted_plate)
 
     if is_free:
         await update.message.reply_text(f"✅ Plate {plate} is free!")
