@@ -1,10 +1,9 @@
 import json
 import asyncio
-import aiohttp
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 import requests
 from bs4 import BeautifulSoup
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
 # ----------------------------
 # Configuration
@@ -26,7 +25,8 @@ def get_csrf_and_cookies():
         raise Exception("CSRF token not found")
     return token["content"], cookies
 
-def check_plate(plate):
+def check_plate(plate: str) -> bool:
+    """Check if plate is free. Returns True if free, False otherwise."""
     try:
         token, cookies = get_csrf_and_cookies()
         resp = requests.post(
@@ -41,11 +41,8 @@ def check_plate(plate):
             },
             timeout=10,
         )
-        if resp.status_code == 200:
-            return True  # free
-        else:
-            return False  # taken / error
-    except Exception as e:
+        return resp.status_code == 200
+    except Exception:
         return False
 
 # ----------------------------
@@ -53,7 +50,6 @@ def check_plate(plate):
 # ----------------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f"Received message from {update.effective_user.username}: {update.message.text}")
-
     await update.message.reply_text(
         "Welcome! Send me a plate number, and I will tell you if it's free."
     )
@@ -61,7 +57,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_plate(update: Update, context: ContextTypes.DEFAULT_TYPE):
     plate = update.message.text.strip()
     await update.message.reply_text(f"Checking plate: {plate} ...")
-    
+
     loop = asyncio.get_event_loop()
     is_free = await loop.run_in_executor(None, check_plate, plate)
 
@@ -83,10 +79,10 @@ if __name__ == "__main__":
     print("Bot is starting...")
     print(f"Webhook URL: {WEBHOOK_URL}")
 
-    # Run webhook
+    # Run webhook server (Render will call this URL)
     app.run_webhook(
         listen="0.0.0.0",
-        port=8443,
+        port=10000,  # Render free tier requires port 10000
         url_path=BOT_TOKEN,
         webhook_url=WEBHOOK_URL,
     )
