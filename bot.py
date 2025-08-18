@@ -26,7 +26,7 @@ def get_csrf_and_cookies():
     return token["content"], cookies
 
 def check_plate(plate: str) -> bool:
-    """Check if plate is free. Returns True if free, False otherwise."""
+    """Check if plate is free. Returns True if free, False if taken."""
     try:
         token, cookies = get_csrf_and_cookies()
         resp = requests.post(
@@ -41,8 +41,17 @@ def check_plate(plate: str) -> bool:
             },
             timeout=10,
         )
-        return resp.status_code == 200
-    except Exception:
+
+        if resp.status_code == 200:
+            return True   # Plate is free
+        elif resp.status_code == 422:
+            return False  # Plate is taken
+        else:
+            print(f"Unexpected response {resp.status_code}: {resp.text}")
+            return False
+
+    except Exception as e:
+        print(f"Error checking plate {plate}: {e}")
         return False
 
 # ----------------------------
