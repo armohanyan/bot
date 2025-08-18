@@ -18,7 +18,7 @@ UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like 
 # ----------------------------
 def get_csrf_and_cookies():
     res = requests.get(PLATE_BASE_URL, headers={"User-Agent": UA})
-    cookies = "; ".join([c.split(";")[0] for c in res.headers.get("set-cookie", [])])
+    cookies = res.cookies.get_dict()  # Proper cookies dict
     soup = BeautifulSoup(res.text, "html.parser")
     token = soup.find("meta", {"name": "csrf-token"})
     if not token:
@@ -37,28 +37,30 @@ def check_plate(plate: str) -> bool:
                 "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
                 "X-CSRF-TOKEN": token,
                 "X-Requested-With": "XMLHttpRequest",
-                "Cookie": cookies,
             },
+            cookies=cookies,
             timeout=10,
         )
 
+        print(f"[DEBUG] Checking plate {plate} -> Status code: {resp.status_code}")
+        
         if resp.status_code == 200:
             return True   # Plate is free
         elif resp.status_code == 422:
             return False  # Plate is taken
         else:
-            print(f"Unexpected response {resp.status_code}: {resp.text}")
+            print(f"[WARN] Unexpected response {resp.status_code}: {resp.text}")
             return False
 
     except Exception as e:
-        print(f"Error checking plate {plate}: {e}")
+        print(f"[ERROR] Error checking plate {plate}: {e}")
         return False
 
 # ----------------------------
 # Telegram bot handlers
 # ----------------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print(f"Received message from {update.effective_user.username}: {update.message.text}")
+    print(f"[INFO] Received message from {update.effective_user.username}: {update.message.text}")
     await update.message.reply_text(
         "Welcome! Send me a plate number, and I will tell you if it's free."
     )
@@ -85,8 +87,8 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_plate))
 
-    print("Bot is starting...")
-    print(f"Webhook URL: {WEBHOOK_URL}")
+    print("[INFO] Bot is starting...")
+    print(f"[INFO] Webhook URL: {WEBHOOK_URL}")
 
     # Run webhook server (Render will call this URL)
     app.run_webhook(
