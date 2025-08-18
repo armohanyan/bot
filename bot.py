@@ -25,6 +25,10 @@ def get_csrf_and_cookies():
         raise Exception("CSRF token not found")
     return token["content"], cookies
 
+def normalize_plate(plate: str) -> str:
+    """Remove extra spaces and convert to uppercase."""
+    return plate.replace(" ", "").upper()
+
 def check_plate(plate: str) -> bool:
     """Check if plate is free. Returns True if free, False if taken."""
     try:
@@ -67,10 +71,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_plate(update: Update, context: ContextTypes.DEFAULT_TYPE):
     plate = update.message.text.strip()
+    normalized_plate = normalize_plate(plate)
+    
     await update.message.reply_text(f"Checking plate: {plate} ...")
 
     loop = asyncio.get_event_loop()
-    is_free = await loop.run_in_executor(None, check_plate, plate)
+    is_free = await loop.run_in_executor(None, check_plate, normalized_plate)
 
     if is_free:
         await update.message.reply_text(f"✅ Plate {plate} is free!")
